@@ -1,0 +1,2 @@
+-- Database 'finstream' is automatically created by POSTGRES_DB environment variable
+-- This file is kept for future schema initialization if needed

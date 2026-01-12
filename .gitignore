@@ -1,0 +1,32 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Java / Maven
+**/target/
+**/.mvn/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+**/*.log
+
+# Editors
+.vscode/
+.idea/
+
+# Local junk
+tmp/
+scripts/
+
+# GitHub upgrade logs (ignore noise)
+.github/java-upgrade/
+
+
