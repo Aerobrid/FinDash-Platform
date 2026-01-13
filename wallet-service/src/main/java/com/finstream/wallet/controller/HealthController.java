@@ -33,19 +33,22 @@ public class HealthController {
         response.put("status", up ? "UP" : "DOWN");
         response.put("service", "wallet-service");
 
-        if (component instanceof Health h) {
-            response.put("details", h.getDetails());
-        } else if (component instanceof CompositeHealth ch) {
-            Map<String, Object> components = new LinkedHashMap<>();
-            ch.getComponents().forEach((name, comp) -> {
-                Map<String, Object> c = new LinkedHashMap<>();
-                c.put("status", comp.getStatus().getCode());
-                if (comp instanceof Health h2) {
-                    c.put("details", h2.getDetails());
-                }
-                components.put(name, c);
-            });
-            response.put("components", components);
+        switch (component) {
+            case Health h -> response.put("details", h.getDetails());
+            case CompositeHealth ch -> {
+                Map<String, Object> components = new LinkedHashMap<>();
+                ch.getComponents().forEach((name, comp) -> {
+                    Map<String, Object> c = new LinkedHashMap<>();
+                    c.put("status", comp.getStatus().getCode());
+                    if (comp instanceof Health h2) {
+                        c.put("details", h2.getDetails());
+                    }
+                    components.put(name, c);
+                });
+                response.put("components", components);
+            }
+            default -> {
+            }
         }
 
         return up ? ResponseEntity.ok(response) : ResponseEntity.status(503).body(response);
