@@ -25,6 +25,8 @@
 
     <properties>
         <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <spring-cloud.version>2023.0.0</spring-cloud.version>
         <protobuf.version>3.25.5</protobuf.version>
         <grpc.version>1.60.0</grpc.version>
@@ -79,10 +81,14 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
+                    <source>21</source>
+                    <target>21</target>
                     <compilerArgs>
                         <arg>-parameters</arg>
                         <arg>-Xlint:all</arg>
                         <arg>-Xlint:-options</arg>
+                        <arg>-Xlint:-unchecked</arg>
+                        <arg>-Xlint:-rawtypes</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
