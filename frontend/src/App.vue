@@ -32,7 +32,7 @@ const router = useRouter()
 const route = useRoute()
 
 const currentUser = ref<any>(null)
-const authState = ref(!!localStorage.getItem('userId'))
+const authState = ref(!!sessionStorage.getItem('userId'))
 const isAuthenticated = computed(() => authState.value)
 const isDarkMode = ref(false)
 const showNotifications = ref(false)
@@ -54,7 +54,7 @@ const currentPage = computed(() => {
 })
 
 function loadUser() {
-  const user = localStorage.getItem('currentUser')
+  const user = sessionStorage.getItem('currentUser')
   if (user) {
     currentUser.value = JSON.parse(user)
   }
@@ -103,7 +103,7 @@ function updateUnreadFlag() {
 }
 
 async function loadNotifications() {
-  const userId = localStorage.getItem('userId')
+  const userId = sessionStorage.getItem('userId')
   if (!userId) return
 
   notificationsLoading.value = true
@@ -153,8 +153,9 @@ async function refreshNotifications() {
 }
 
 function handleLogout() {
-  localStorage.removeItem('currentUser')
-  localStorage.removeItem('userId')
+  sessionStorage.removeItem('currentUser')
+  sessionStorage.removeItem('userId')
+  sessionStorage.removeItem('token')
   currentUser.value = null
   authState.value = false
   notifications.value = []
@@ -174,7 +175,7 @@ function handleGlobalClick(event: MouseEvent) {
 
 // Watch route to update auth state
 watch(async () => route.path, async () => {
-  authState.value = !!localStorage.getItem('userId')
+  authState.value = !!sessionStorage.getItem('userId')
   if (authState.value) {
     loadUser()
     await loadNotifications()

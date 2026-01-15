@@ -45,7 +45,7 @@ onMounted(async () => {
   try {
     const res = await axios.get('/api/wallet/users')
     allUsers.value = res.data
-    currentUserId.value = localStorage.getItem('userId') || ''
+    currentUserId.value = sessionStorage.getItem('userId') || ''
     
     // If preselected contact is provided, set it
     if (props.preselectedContact) {

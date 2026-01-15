@@ -7,7 +7,7 @@ import Analytics from '../views/Analytics.vue'
 import Security from '../views/Security.vue'
 
 const isAuthenticated = () => {
-  return !!localStorage.getItem('userId')
+  return !!sessionStorage.getItem('userId')
 }
 
 const router = createRouter({

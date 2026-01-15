@@ -11,12 +11,12 @@ const fullName = ref('')
 const loading = ref(false)
 const error = ref('')
 const activeTab = ref('login') // 'login' or 'signup'
-const isAuthenticated = computed(() => !!localStorage.getItem('userId'))
+const isAuthenticated = computed(() => !!sessionStorage.getItem('userId'))
 const currentUser = ref<any>(null)
 
 onMounted(() => {
   if (isAuthenticated.value) {
-    const user = localStorage.getItem('currentUser')
+    const user = sessionStorage.getItem('currentUser')
     if (user) {
       currentUser.value = JSON.parse(user)
     }
@@ -58,10 +58,10 @@ async function handleLogin() {
     
     if (res.status === 200) {
       const data = res.data
-      // Store JWT token and user info
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('userId', data.userId)
-      localStorage.setItem('currentUser', JSON.stringify({
+      // Store JWT token and user info in sessionStorage (per-tab)
+      sessionStorage.setItem('token', data.token)
+      sessionStorage.setItem('userId', data.userId)
+      sessionStorage.setItem('currentUser', JSON.stringify({
         id: data.userId,
         fullName: data.fullName,
         email: data.email
@@ -101,10 +101,10 @@ async function handleSignup() {
 
     if (res.status === 200) {
       const data = res.data
-      // Store JWT token and user info
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('userId', data.userId)
-      localStorage.setItem('currentUser', JSON.stringify({
+      // Store JWT token and user info in sessionStorage (per-tab)
+      sessionStorage.setItem('token', data.token)
+      sessionStorage.setItem('userId', data.userId)
+      sessionStorage.setItem('currentUser', JSON.stringify({
         id: data.userId,
         fullName: data.fullName,
         email: data.email
@@ -132,8 +132,10 @@ function switchTab(tab: string) {
 }
 
 function handleLogout() {
-  localStorage.removeItem('currentUser')
-  localStorage.removeItem('userId')
+  sessionStorage.removeItem('currentUser')
+  sessionStorage.removeItem('userId')
+  sessionStorage.removeItem('token')
+  delete axios.defaults.headers.common['Authorization']
   error.value = ''
   activeTab.value = 'login'
   email.value = ''

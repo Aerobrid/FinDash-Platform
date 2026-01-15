@@ -51,7 +51,7 @@ function saveContactsToStorage() {
 async function loadContacts() {
   try {
     // Get current user ID
-    currentUserId.value = localStorage.getItem('userId') || ''
+    currentUserId.value = sessionStorage.getItem('userId') || ''
     
     // Load all users from backend
     const res = await axios.get('/api/wallet/users')

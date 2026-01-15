@@ -179,8 +179,8 @@ const copiedTransactionId = ref(false)
 const router = useRouter()
 
 async function loadCurrentUser() {
-  const userId = localStorage.getItem('userId')
-  const userStr = localStorage.getItem('currentUser')
+  const userId = sessionStorage.getItem('userId')
+  const userStr = sessionStorage.getItem('currentUser')
   
   if (!userId || !userStr) {
     console.error('No user logged in')

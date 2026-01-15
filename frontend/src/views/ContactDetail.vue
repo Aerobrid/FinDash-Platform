@@ -49,7 +49,7 @@ onMounted(loadContactDetails)
 
 async function loadContactDetails() {
   const contactId = route.params.id as string
-  const userId = localStorage.getItem('userId')
+  const userId = sessionStorage.getItem('userId')
   
   if (!userId) {
     router.push({ name: 'login' })

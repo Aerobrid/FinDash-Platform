@@ -15,7 +15,7 @@ interface Session {
 }
 
 const router = useRouter()
-const currentUser = ref(JSON.parse(localStorage.getItem('currentUser') || '{}'))
+const currentUser = ref(JSON.parse(sessionStorage.getItem('currentUser') || '{}'))
 const showPasswordForm = ref(false)
 const showEditProfile = ref(false)
 const currentPassword = ref('')
@@ -112,7 +112,7 @@ async function handleSaveProfile() {
     })
 
     const updatedUser = res.data
-    localStorage.setItem('currentUser', JSON.stringify(updatedUser))
+    sessionStorage.setItem('currentUser', JSON.stringify(updatedUser))
     currentUser.value = updatedUser
     profileMessage.value = 'Profile updated successfully!'
     setTimeout(() => {
@@ -152,16 +152,18 @@ function handleChangePassword() {
 }
 
 function handleLogout() {
-  localStorage.removeItem('currentUser')
-  localStorage.removeItem('userId')
+  sessionStorage.removeItem('currentUser')
+  sessionStorage.removeItem('userId')
+  sessionStorage.removeItem('token')
   router.push('/')
 }
 
 function handleDeleteAccount() {
   if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-    const userId = localStorage.getItem('userId')
-    localStorage.removeItem('currentUser')
-    localStorage.removeItem('userId')
+    const userId = sessionStorage.getItem('userId')
+    sessionStorage.removeItem('currentUser')
+    sessionStorage.removeItem('userId')
+    sessionStorage.removeItem('token')
     // Remove all contacts for this user
     if (userId) {
       localStorage.removeItem(`contacts_${userId}`)

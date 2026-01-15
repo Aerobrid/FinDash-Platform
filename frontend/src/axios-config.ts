@@ -6,7 +6,7 @@ axios.defaults.baseURL = ''
 // Add token to requests if available
 axios.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token')
+    const token = sessionStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -23,9 +23,9 @@ axios.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Token expired or invalid
-      localStorage.removeItem('token')
-      localStorage.removeItem('userId')
-      localStorage.removeItem('currentUser')
+      sessionStorage.removeItem('token')
+      sessionStorage.removeItem('userId')
+      sessionStorage.removeItem('currentUser')
       delete axios.defaults.headers.common['Authorization']
       
       // Redirect to login if not already there

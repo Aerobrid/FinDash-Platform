@@ -13,7 +13,7 @@ interface Transaction {
 }
 
 const transactions = ref<Transaction[]>([])
-const selectedUserId = ref(localStorage.getItem('userId') || '')
+const selectedUserId = ref(sessionStorage.getItem('userId') || '')
 const loading = ref(false)
 
 const totalSpent = computed(() => {
