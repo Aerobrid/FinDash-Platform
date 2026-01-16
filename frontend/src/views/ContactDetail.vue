@@ -2,10 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
-import { formatCurrencyCompact } from '../utils/formatNumber'
+import { useAuth } from '../composables/useAuth'
+import { formatCurrencyCompact, formatRelativeTime } from '../utils/formatNumber'
 
 const router = useRouter()
 const route = useRoute()
+const { currentUser } = useAuth()
 
 interface User {
   id: string
@@ -24,7 +26,7 @@ interface Transaction {
 
 const contact = ref<User | null>(null)
 const transactions = ref<Transaction[]>([])
-const currentUserId = ref('')
+const currentUserId = computed(() => currentUser.value?.id || '')
 const loading = ref(true)
 const transferAmount = ref('')
 const transferLoading = ref(false)
@@ -49,18 +51,17 @@ onMounted(loadContactDetails)
 
 async function loadContactDetails() {
   const contactId = route.params.id as string
-  const userId = sessionStorage.getItem('userId')
   
-  if (!userId) {
-    router.push({ name: 'login' })
-    return
-  }
-  
-  currentUserId.value = userId
   loading.value = true
   
   try {
-    // Load contact info
+    // Use shared auth composable instead of making direct API call
+    if (!currentUserId.value) {
+      router.push({ name: 'login' })
+      return
+    }
+    
+    // load contact info
     const usersRes = await axios.get('/api/wallet/users')
     contact.value = usersRes.data.find((u: User) => u.id === contactId) || null
     
@@ -70,17 +71,17 @@ async function loadContactDetails() {
     }
 
     // Load balance
-    const balanceRes = await axios.get(`/api/wallet/${userId}/balance`)
+    const balanceRes = await axios.get(`/api/wallet/${currentUserId.value}/balance`)
     balance.value = balanceRes.data.balance
     
     // Load transaction history with this contact
-    const historyRes = await axios.get(`/api/transaction/history/${userId}`)
+    const historyRes = await axios.get(`/api/transaction/history/${currentUserId.value}`)
     const allTransactions = historyRes.data
     
     transactions.value = allTransactions
       .filter((tx: Transaction) => 
-        (tx.senderId === contactId && tx.receiverId === userId) ||
-        (tx.senderId === userId && tx.receiverId === contactId)
+        (tx.senderId === contactId && tx.receiverId === currentUserId.value) ||
+        (tx.senderId === currentUserId.value && tx.receiverId === contactId)
       )
       .sort((a: Transaction, b: Transaction) => 
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -94,7 +95,7 @@ async function loadContactDetails() {
 }
 
 async function handleTransfer() {
-  if (!contact.value || !isAmountValid()) return
+  if (!contact.value || !isAmountValid() || !currentUserId.value) return
   
   transferLoading.value = true
   transferStatus.value = { type: '', message: '' }
@@ -132,21 +133,6 @@ async function handleTransfer() {
       transferStatus.value = { type: '', message: '' }
     }, 5000)
   }
-}
-
-function formatRelativeTime(timestamp: string) {
-  const now = new Date()
-  const then = new Date(timestamp)
-  const diffMs = now.getTime() - then.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-  
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return then.toLocaleDateString()
 }
 
 const totalSentToContact = computed(() => {

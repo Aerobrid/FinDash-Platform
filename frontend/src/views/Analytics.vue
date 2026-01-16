@@ -2,6 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import { formatCurrencyCompact } from '../utils/formatNumber'
+import { formatCentralTime, formatCentralDate } from '../utils/formatDate'
+import { useAuth } from '../composables/useAuth'
 
 interface Transaction {
   id: string
@@ -12,9 +14,11 @@ interface Transaction {
   timestamp: string
 }
 
+const { currentUser } = useAuth()
 const transactions = ref<Transaction[]>([])
-const selectedUserId = ref(sessionStorage.getItem('userId') || '')
 const loading = ref(false)
+
+const selectedUserId = computed(() => currentUser.value?.id || '')
 
 const totalSpent = computed(() => {
   return transactions.value
@@ -101,21 +105,6 @@ function copyTransactionId(id: string) {
   } catch (err) {
     console.error('Failed to copy:', err)
   }
-}
-
-function formatCentralTime(timestamp: string): string {
-  // Ensure timestamp is treated as UTC by adding Z if not present
-  const utcTimestamp = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z'
-  const date = new Date(utcTimestamp)
-  return date.toLocaleString('en-US', {
-    timeZone: 'America/Chicago',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
 }
 
 onMounted(loadHistory)
@@ -229,7 +218,7 @@ onMounted(loadHistory)
             </div>
             <div>
               <p class="font-semibold text-slate-900 dark:text-slate-50">{{ tx.senderId === selectedUserId ? 'Sent' : 'Received' }}</p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">{{ new Date(tx.timestamp).toLocaleDateString() }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">{{ formatCentralDate(tx.timestamp) }}</p>
             </div>
           </div>
           <p :class="[
@@ -264,7 +253,7 @@ onMounted(loadHistory)
                   </div>
                   <div>
                     <h3 class="font-bold text-slate-900 dark:text-slate-50">{{ selectedTransaction.senderId === selectedUserId ? 'Payment Sent' : 'Payment Received' }}</h3>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ new Date(selectedTransaction.timestamp).toUTCString().split(' ').slice(0, 4).join(' ') }}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ formatCentralDate(selectedTransaction.timestamp) }}</p>
                   </div>
                 </div>
                 <button

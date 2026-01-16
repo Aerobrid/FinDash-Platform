@@ -1,11 +1,4 @@
-/**
- * Format a number with shorthand notation for large values
- * Numbers < 100,000 display normally with commas
- * Numbers >= 100,000 display as shorthand (k, M, B)
- * @param num - The number to format
- * @param decimals - Number of decimal places (default: 1)
- * @returns Formatted string
- */
+// format number -> shorthand for values >= 100k (k/M/B suffix)
 export function formatNumberCompact(num: number, decimals: number = 1): string {
   if (num < 100000) {
     // Display normally with commas for numbers under 100k
@@ -32,13 +25,7 @@ export function formatNumberCompact(num: number, decimals: number = 1): string {
   })
 }
 
-/**
- * Format a currency value with shorthand notation for large values
- * @param num - The number to format
- * @param currency - Currency symbol (default: '$')
- * @param decimals - Number of decimal places (default: 1)
- * @returns Formatted string with currency symbol
- */
+// format currency -> shorthand for values >= 100k
 export function formatCurrencyCompact(num: number, currency: string = '$', decimals: number = 1): string {
   if (num < 100000) {
     // Display normally with commas for numbers under 100k
@@ -63,4 +50,21 @@ export function formatCurrencyCompact(num: number, currency: string = '$', decim
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })
+}
+
+// format relative time (e.g., "5m ago", "Just now")
+export function formatRelativeTime(timestamp: string): string {
+  const now = new Date()
+  const then = new Date(timestamp)
+  const diffMs = now.getTime() - then.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+
+  return 'Long ago'
 }

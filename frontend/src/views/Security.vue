@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { useAuth } from '../composables/useAuth'
+import { formatRelativeTime } from '../utils/formatNumber'
 
 interface Session {
   id: string
@@ -15,19 +17,28 @@ interface Session {
 }
 
 const router = useRouter()
-const currentUser = ref(JSON.parse(sessionStorage.getItem('currentUser') || '{}'))
+const { currentUser, logoutAndClearCookie } = useAuth()
 const showPasswordForm = ref(false)
 const showEditProfile = ref(false)
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 const passwordMessage = ref('')
-const editFullName = ref(currentUser.value.fullName || '')
-const editEmail = ref(currentUser.value.email || '')
+const editFullName = ref('')
+const editEmail = ref('')
 const profileMessage = ref('')
 const sessions = ref<Session[]>([])
 const sessionsLoading = ref(false)
 const deletingSessionId = ref<string | null>(null)
+
+onMounted(async () => {
+  // User is loaded by router guard and available from composable
+  if (currentUser.value) {
+    editFullName.value = currentUser.value.fullName
+    editEmail.value = currentUser.value.email
+    await loadSessions()
+  }
+})
 
 async function loadSessions() {
   if (!currentUser.value?.id) return
@@ -41,22 +52,6 @@ async function loadSessions() {
   } finally {
     sessionsLoading.value = false
   }
-}
-
-function formatRelativeTime(timestamp: string): string {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  
-  return date.toLocaleDateString()
 }
 
 async function deleteSession(sessionId: string) {
@@ -112,8 +107,11 @@ async function handleSaveProfile() {
     })
 
     const updatedUser = res.data
-    sessionStorage.setItem('currentUser', JSON.stringify(updatedUser))
-    currentUser.value = updatedUser
+    // Update local ref to reflect changes immediately
+    if (currentUser.value) {
+      currentUser.value.fullName = updatedUser.fullName
+      currentUser.value.email = updatedUser.email
+    }
     profileMessage.value = 'Profile updated successfully!'
     setTimeout(() => {
       showEditProfile.value = false
@@ -151,29 +149,27 @@ function handleChangePassword() {
   }, 2000)
 }
 
-function handleLogout() {
-  sessionStorage.removeItem('currentUser')
-  sessionStorage.removeItem('userId')
-  sessionStorage.removeItem('token')
-  router.push('/')
-}
-
-function handleDeleteAccount() {
+async function handleDeleteAccount() {
   if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-    const userId = sessionStorage.getItem('userId')
-    sessionStorage.removeItem('currentUser')
-    sessionStorage.removeItem('userId')
-    sessionStorage.removeItem('token')
-    // Remove all contacts for this user
-    if (userId) {
-      localStorage.removeItem(`contacts_${userId}`)
+    try {
+      await logoutAndClearCookie()
+    } catch (err) {
+      console.error('Logout error during account deletion:', err)
     }
+    
     alert('Your account has been deleted.')
     router.push('/')
   }
 }
 
-onMounted(loadSessions)
+async function handleLogout() {
+  try {
+    await logoutAndClearCookie()
+    router.push('/login')
+  } catch (err) {
+    console.error('Logout error:', err)
+  }
+}
 </script>
 
 <template>

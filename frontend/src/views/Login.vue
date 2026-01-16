@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { getDeviceInfo } from '../utils/deviceDetection'
+import { useAuth } from '../composables/useAuth'
 
 const router = useRouter()
 const email = ref('')
@@ -11,15 +12,14 @@ const fullName = ref('')
 const loading = ref(false)
 const error = ref('')
 const activeTab = ref('login') // 'login' or 'signup'
-const isAuthenticated = computed(() => !!sessionStorage.getItem('userId'))
-const currentUser = ref<any>(null)
+
+// Use shared auth composable
+const { isAuthenticated, currentUser, loadUser } = useAuth()
 
 onMounted(() => {
+  // If already authenticated, redirect to dashboard
   if (isAuthenticated.value) {
-    const user = sessionStorage.getItem('currentUser')
-    if (user) {
-      currentUser.value = JSON.parse(user)
-    }
+    router.push('/dashboard')
   }
 })
 
@@ -57,21 +57,12 @@ async function handleLogin() {
     })
     
     if (res.status === 200) {
-      const data = res.data
-      // Store JWT token and user info in sessionStorage (per-tab)
-      sessionStorage.setItem('token', data.token)
-      sessionStorage.setItem('userId', data.userId)
-      sessionStorage.setItem('currentUser', JSON.stringify({
-        id: data.userId,
-        fullName: data.fullName,
-        email: data.email
-      }))
+      // Load user from cookie using shared composable
+      await loadUser()
       
-      // Set axios default header for future requests
-      axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
-      
-      // Create session record
-      await createSession(data.userId)
+      // Fetch user ID for session creation
+      const userRes = await axios.get('/api/wallet/me')
+      await createSession(userRes.data.userId)
       
       router.push('/dashboard')
     }
@@ -100,21 +91,12 @@ async function handleSignup() {
     })
 
     if (res.status === 200) {
-      const data = res.data
-      // Store JWT token and user info in sessionStorage (per-tab)
-      sessionStorage.setItem('token', data.token)
-      sessionStorage.setItem('userId', data.userId)
-      sessionStorage.setItem('currentUser', JSON.stringify({
-        id: data.userId,
-        fullName: data.fullName,
-        email: data.email
-      }))
+      // Load user from cookie using shared composable
+      await loadUser()
       
-      // Set axios default header
-      axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
-      
-      // Create session record
-      await createSession(data.userId)
+      // Fetch user ID for session creation
+      const userRes = await axios.get('/api/wallet/me')
+      await createSession(userRes.data.userId)
       
       router.push('/dashboard')
     }
@@ -131,17 +113,20 @@ function switchTab(tab: string) {
   error.value = ''
 }
 
-function handleLogout() {
-  sessionStorage.removeItem('currentUser')
-  sessionStorage.removeItem('userId')
-  sessionStorage.removeItem('token')
-  delete axios.defaults.headers.common['Authorization']
+async function handleLogout() {
+  try {
+    await axios.post('/api/wallet/logout')
+  } catch (err) {
+    console.error('Logout error:', err)
+  }
+  
   error.value = ''
   activeTab.value = 'login'
   email.value = ''
   password.value = ''
   fullName.value = ''
   currentUser.value = null
+  isAuthenticated.value = false
 }
 </script>
 
@@ -248,7 +233,7 @@ function handleLogout() {
                 v-model="email"
                 type="email"
                 placeholder="your@email.com"
-                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-slate-900 bg-white"
                 :disabled="loading"
               />
             </div>
@@ -259,7 +244,7 @@ function handleLogout() {
                 v-model="password"
                 type="password"
                 placeholder="••••••••"
-                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-slate-900 bg-white"
                 :disabled="loading"
               />
             </div>
@@ -288,7 +273,7 @@ function handleLogout() {
                 v-model="fullName"
                 type="text"
                 placeholder="John Doe"
-                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-slate-900 bg-white"
                 :disabled="loading"
               />
             </div>
@@ -299,7 +284,7 @@ function handleLogout() {
                 v-model="email"
                 type="email"
                 placeholder="john@example.com"
-                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-slate-900 bg-white"
                 :disabled="loading"
               />
             </div>
@@ -310,7 +295,7 @@ function handleLogout() {
                 v-model="password"
                 type="password"
                 placeholder="••••••••"
-                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-slate-900 bg-white"
                 :disabled="loading"
               />
             </div>

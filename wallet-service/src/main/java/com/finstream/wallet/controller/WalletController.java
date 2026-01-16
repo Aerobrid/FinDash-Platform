@@ -24,11 +24,13 @@ import com.finstream.wallet.model.User;
 import com.finstream.wallet.model.Wallet;
 import com.finstream.wallet.repository.UserRepository;
 import com.finstream.wallet.repository.WalletRepository;
+import com.finstream.wallet.security.CookieUtil;
 import com.finstream.wallet.security.JwtUtil;
 import com.finstream.wallet.security.RateLimitingService;
 import com.finstream.wallet.service.WalletService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 @RestController
@@ -41,16 +43,39 @@ public class WalletController {
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RateLimitingService rateLimitingService;
+    private final CookieUtil cookieUtil;
 
     public WalletController(WalletService walletService, UserRepository userRepository, 
                            WalletRepository walletRepository, JwtUtil jwtUtil,
-                           RateLimitingService rateLimitingService) {
+                           RateLimitingService rateLimitingService, CookieUtil cookieUtil) {
         this.walletService = walletService;
         this.userRepository = userRepository;
         this.walletRepository = walletRepository;
         this.jwtUtil = jwtUtil;
         this.rateLimitingService = rateLimitingService;
+        this.cookieUtil = cookieUtil;
         this.passwordEncoder = new BCryptPasswordEncoder();
+    }
+
+    // get current user from JWT cookie
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(HttpServletRequest request) {
+        String userId = (String) request.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
+        }
+        
+        Optional<User> userOpt = userRepository.findById(UUID.fromString(userId));
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        User user = userOpt.get();
+        return ResponseEntity.ok(Map.of(
+            "userId", user.getId().toString(),
+            "fullName", user.getFullName(),
+            "email", user.getEmail()
+        ));
     }
 
     @GetMapping("/{userId}/balance")
@@ -80,37 +105,29 @@ public class WalletController {
     }
 
     @PostMapping("/users")
-    public ResponseEntity<?> createUser(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<?> createUser(@Valid @RequestBody RegisterRequest request, HttpServletResponse response) {
         try {
-            // Check if email already exists
             if (userRepository.findByEmail(request.getEmail()).isPresent()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Email already in use"));
             }
 
-            // Create user with hashed password
             User user = new User();
             user.setFullName(request.getFullName());
             user.setEmail(request.getEmail());
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-
             User savedUser = userRepository.save(user);
 
-            // Create wallet with $1000 initial balance
+            // create wallet -> $1000 initial balance
             Wallet wallet = new Wallet();
             wallet.setUserId(savedUser.getId());
             wallet.setBalance(new BigDecimal("1000.00"));
             wallet.setCurrency("USD");
             walletRepository.save(wallet);
 
-            // Generate JWT token
             String token = jwtUtil.generateToken(savedUser.getId(), savedUser.getEmail());
+            cookieUtil.addAuthCookie(response, token);
 
-            return ResponseEntity.ok(Map.of(
-                    "token", token,
-                    "userId", savedUser.getId().toString(),
-                    "fullName", savedUser.getFullName(),
-                    "email", savedUser.getEmail()
-            ));
+            return ResponseEntity.ok(Map.of("success", true));
 
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -118,10 +135,9 @@ public class WalletController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         String clientIp = httpRequest.getRemoteAddr();
         
-        // Rate limiting by IP
         if (!rateLimitingService.tryConsume("login_" + clientIp)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body(Map.of("error", "Too many login attempts. Please try again later."));
@@ -138,15 +154,10 @@ public class WalletController {
                 return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
             }
 
-            // Generate JWT token
             String token = jwtUtil.generateToken(user.getId(), user.getEmail());
+            cookieUtil.addAuthCookie(httpResponse, token);
 
-            return ResponseEntity.ok(Map.of(
-                    "token", token,
-                    "userId", user.getId().toString(),
-                    "fullName", user.getFullName(),
-                    "email", user.getEmail()
-            ));
+            return ResponseEntity.ok(Map.of("success", true));
 
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", "Login failed"));
@@ -169,7 +180,7 @@ public class WalletController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Missing required fields"));
             }
 
-            // Ensure email is unique (excluding current user)
+            // check email uniqueness (exclude current user)
             Optional<User> emailOwner = userRepository.findByEmail(email);
             if (emailOwner.isPresent() && !emailOwner.get().getId().equals(id)) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Email already in use"));
@@ -190,5 +201,11 @@ public class WalletController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletResponse response) {
+        cookieUtil.removeAuthCookie(response);
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 }

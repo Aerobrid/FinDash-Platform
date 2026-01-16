@@ -2,13 +2,13 @@
 
 ## Overview
 
-FinDash is a simulated digital wallet and payment platform. It lets users:
-- Register and authenticate (JWT + BCrypt)
-- Manage wallets and view real-time balances
-- Send transfers between users
-- Review transaction history and basic analytics
+FinDash is a simulated digital wallet and payment platform that lets users:
+- Sign up and log in securely (JWT + HttpOnly cookies)
+- Check wallet balances and transaction history
+- Send money to other users
+- Manage contacts and view analytics
 
-The system showcases a microservices architecture with Kafka for events, gRPC for synchronous calls, and a gateway with circuit breakers and rate limiting. Security, validation, and observability are included.
+Built with Vue 3 frontend, Spring Boot microservices, PostgreSQL, and Kafka for messaging.
 
 ## Prerequisites
 
@@ -16,6 +16,7 @@ The system showcases a microservices architecture with Kafka for events, gRPC fo
 > **For Docker (recommended):**
 > - Docker Desktop or Docker Engine (20.10+)
 > - Docker Compose (2.0+)
+>
 > **For local development without Docker:**
 > - Java 21+ (JDK)
 > - Maven 3.9+
@@ -118,7 +119,7 @@ The system showcases a microservices architecture with Kafka for events, gRPC fo
 - Backend: Java 21, Spring Boot 3, Spring Cloud Gateway, Resilience4J, Micrometer
 - Messaging: Apache Kafka
 - Data: PostgreSQL, HikariCP
-- Security: JWT (Bearer), BCrypt, Jakarta Validation, rate limiting (Bucket4j)
+- Security: JWT (HttpOnly Cookies), BCrypt, Jakarta Validation, rate limiting (Bucket4j), CORS with credentials
 - Frontend: Vue 3, Vite, Tailwind, Axios
 - Containers: Docker, Docker Compose
 
@@ -171,20 +172,15 @@ Copy-Item .env.example .env
 ```powershell
 docker-compose up -d --build
 ```
-Services:
 - Frontend: http://localhost:3000
 - API Gateway: http://localhost:8080
 
-## Run Locally (without Docker)
-
-> [!NOTE]
-> Prereqs: Java 21+, Maven, Node 18+
-
+### Locally
 ```powershell
-# Backend (from repo root)
+# Build all services
 mvn clean package -DskipTests
 
-# Terminal 1: Postgres + Kafka (run via Docker Compose even for local dev)
+# Terminal 1: Start database and messaging
 docker-compose up -d postgres zookeeper kafka
 
 # Terminal 2: Wallet Service
@@ -196,49 +192,73 @@ mvn -pl transaction-service spring-boot:run
 # Terminal 4: API Gateway
 mvn -pl api-gateway spring-boot:run
 
-# Frontend (hot reload)
+# Terminal 5: Frontend (with hot reload)
 cd frontend
 npm install
 npm run dev
 ```
 
-## API Endpoints (via Gateway)
-- Wallet
-  - POST /api/wallet/users — Register (returns `token`)
-  - POST /api/wallet/login — Login (returns `token`)
-  - GET  /api/wallet/users — List users (public)
-  - GET  /api/wallet/{userId}/balance — Get balance (auth required)
-- Transaction
-  - GET  /api/transaction/history/{userId} — List transactions (auth)
-  - POST /api/transaction/transfer — Create transfer (auth)
+## API Endpoints
 
-Auth header after login/register:
-```
-Authorization: Bearer <token>
-```
+All requests go through the gateway at `http://localhost:8080`. Authentication is automatic via HttpOnly cookie.
 
-## Quick Test (Windows-safe)
+### Wallet Service
+- `POST /api/wallet/users` — Register new user
+- `POST /api/wallet/login` — Log in (sets secure cookie)
+- `POST /api/wallet/logout` — Log out
+- `GET /api/wallet/users` — List all users
+- `GET /api/wallet/{userId}/balance` — Get balance (requires auth)
+
+### Transaction Service
+- `GET /api/transaction/history/{userId}` — View transactions (requires auth)
+- `POST /api/transaction/transfer` — Send money to another user (requires auth)
+
+## Quick Test
+
 ```powershell
-$u1 = @{ fullName = "QA One";  email = "qa.one@example.com";  password = "TestPassword!234" } | ConvertTo-Json
-$u2 = @{ fullName = "QA Two";  email = "qa.two@example.com";  password = "TestPassword!234" } | ConvertTo-Json
-$r1 = Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/users" -Method POST -ContentType "application/json" -Body $u1
-$r2 = Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/users" -Method POST -ContentType "application/json" -Body $u2
-$login = @{ email = "qa.one@example.com"; password = "TestPassword!234" } | ConvertTo-Json
-$auth = Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/login" -Method POST -ContentType "application/json" -Body $login
-$token = $auth.token
-$xfer = @{ senderEmail = "qa.one@example.com"; receiverEmail = "qa.two@example.com"; amount = 10.5 } | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8080/api/transaction/transfer" -Method POST -ContentType "application/json" -Headers @{ Authorization = "Bearer $token" } -Body $xfer
+# Create two users
+$u1 = @{ fullName = "Alice"; email = "alice@test.com"; password = "TestPass!123" } | ConvertTo-Json
+$u2 = @{ fullName = "Bob"; email = "bob@test.com"; password = "TestPass!123" } | ConvertTo-Json
+
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/users" -Method POST -ContentType "application/json" -Body $u1 -WebSession $session
+Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/users" -Method POST -ContentType "application/json" -Body $u2 -WebSession $session
+
+# Log in as Alice
+$login = @{ email = "alice@test.com"; password = "TestPass!123" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/login" -Method POST -ContentType "application/json" -Body $login -WebSession $session
+
+# Send $5 to Bob
+$xfer = @{ senderEmail = "alice@test.com"; receiverEmail = "bob@test.com"; amount = 5 } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8080/api/transaction/transfer" -Method POST -ContentType "application/json" -Body $xfer -WebSession $session
 ```
 
-## Troubleshooting
-- Gateway root '/' returns 404 — use `/api/...` routes.
-- Windows quoting: use PowerShell with `ConvertTo-Json` to avoid 400 parse errors.
-- First run: wait a few seconds for Postgres/Kafka to warm up.
-- 401 after restart: ensure the same `JWT_SECRET` remains in `.env`.
-- 429 on login: rate limiting — wait 1 minute and retry.
+## Security
 
-## Production Concerns
-- CORS: Gateway uses `allowedOriginPatterns: "*"` with credentials.
-- TLS/Proxy: terminate TLS in a reverse proxy or load balancer in front of gateway.
-- Observability: Actuator health and Micrometer metrics are included.
-- Resilience: Circuit breakers and timeouts are configured.
+**Authentication:** JWT tokens stored in secure HttpOnly cookies. Browser automatically sends with each request. Never stored in localStorage/sessionStorage.
+
+**Password:** BCrypt hashing with 10+ salt rounds.
+
+**Rate Limiting:** Max 5 login attempts per minute to prevent brute force.
+
+**CORS:** Configured for localhost. Update for production domains only.
+
+**Database:** All queries are parameterized (no SQL injection).
+
+**Production Checklist:**
+- Set `Secure` flag on cookies (requires HTTPS)
+- Use 256+ bit JWT secret in secure vault
+- Enable TLS 1.3+ on all connections
+- Update allowed CORS origins to production domains
+- Review rate limit thresholds
+
+## Codebase Improvements
+
+- ✅ Centralized auth state via shared `useAuth()` composable
+- ✅ Single auth check on app startup (no race conditions)
+- ✅ Removed duplicate functions (`formatRelativeTime`, `loadUser`, `handleLogout`, etc.)
+- ✅ Removed sessionStorage usage (only HttpOnly cookies for auth)
+- ✅ Contact persistence with localStorage (per-user keys)
+- ✅ Contact search filters out already-added contacts
+- ✅ Dark mode initialization prevents UI flashing
+- ✅ All components use proper TypeScript types

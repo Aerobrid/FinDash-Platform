@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
+import { useAuth } from '../composables/useAuth'
 
 interface User {
   id: string
@@ -21,13 +22,16 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+// Use shared auth composable
+const { currentUser } = useAuth()
+const currentUserId = computed(() => currentUser.value?.id || '')
+
 const allUsers = ref<User[]>([])
 const recipientSearch = ref('')
 const recipientId = ref('')
 const amount = ref<number | null>(null)
 const showResults = ref(false)
 const searchResults = ref<User[]>([])
-const currentUserId = ref('')
 const insufficientBalance = ref(false)
 
 const isAmountValid = () => {
@@ -45,7 +49,6 @@ onMounted(async () => {
   try {
     const res = await axios.get('/api/wallet/users')
     allUsers.value = res.data
-    currentUserId.value = sessionStorage.getItem('userId') || ''
     
     // If preselected contact is provided, set it
     if (props.preselectedContact) {

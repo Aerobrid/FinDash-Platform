@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue'
 
 interface Contact {
@@ -16,14 +17,17 @@ interface User {
   email: string
 }
 
+const { currentUser } = useAuth()
 const contacts = ref<Contact[]>([])
 const allUsers = ref<User[]>([])
 const searchQuery = ref('')
 const searchResults = ref<User[]>([])
 const showSearchResults = ref(false)
 const loading = ref(false)
-const currentUserId = ref('')
 const router = useRouter()
+
+const currentUserId = computed(() => currentUser.value?.id || '')
+const CONTACTS_STORAGE_KEY = computed(() => `contacts_${currentUserId.value}`)
 
 // Delete confirmation modal
 const showDeleteModal = ref(false)
@@ -31,7 +35,7 @@ const contactToDelete = ref<Contact | null>(null)
 
 function loadContactsFromStorage() {
   try {
-    const stored = localStorage.getItem(`contacts_${currentUserId.value}`)
+    const stored = localStorage.getItem(CONTACTS_STORAGE_KEY.value)
     if (stored) {
       contacts.value = JSON.parse(stored)
     }
@@ -42,7 +46,7 @@ function loadContactsFromStorage() {
 
 function saveContactsToStorage() {
   try {
-    localStorage.setItem(`contacts_${currentUserId.value}`, JSON.stringify(contacts.value))
+    localStorage.setItem(CONTACTS_STORAGE_KEY.value, JSON.stringify(contacts.value))
   } catch (err) {
     console.error('Failed to save contacts to storage', err)
   }
@@ -50,14 +54,11 @@ function saveContactsToStorage() {
 
 async function loadContacts() {
   try {
-    // Get current user ID
-    currentUserId.value = sessionStorage.getItem('userId') || ''
-    
-    // Load all users from backend
+    // load all users from backend
     const res = await axios.get('/api/wallet/users')
     allUsers.value = res.data
     
-    // Load saved contacts from localStorage
+    // Load contacts from localStorage
     loadContactsFromStorage()
   } catch (err) {
     console.error('Failed to load users', err)
@@ -108,7 +109,6 @@ function addContact(user: User) {
   })
   
   saveContactsToStorage()
-  
   searchQuery.value = ''
   searchResults.value = []
   showSearchResults.value = false

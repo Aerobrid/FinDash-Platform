@@ -2,10 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
 import StatCard from '../components/StatCard.vue'
 import TransactionCard from '../components/TransactionCard.vue'
 import TransferForm from '../components/TransferForm.vue'
-import { formatCurrencyCompact, formatNumberCompact } from '../utils/formatNumber'
+import { formatCurrencyCompact, formatNumberCompact, formatRelativeTime } from '../utils/formatNumber'
+import { formatCentralTime, formatCentralDate } from '../utils/formatDate'
 
 interface User {
   id: string
@@ -28,8 +30,8 @@ interface Contact {
   lastTransaction: string
 }
 
-const currentUser = ref<User | null>(null)
-const currentUserId = ref<string>('')
+const { currentUser } = useAuth()
+const currentUserId = computed(() => currentUser.value?.id || '')
 const transactions = ref<Transaction[]>([])
 const balance = ref<number | null>(null)
 const loading = ref(false)
@@ -178,18 +180,7 @@ const showTransactionModal = ref(false)
 const copiedTransactionId = ref(false)
 const router = useRouter()
 
-async function loadCurrentUser() {
-  const userId = sessionStorage.getItem('userId')
-  const userStr = sessionStorage.getItem('currentUser')
-  
-  if (!userId || !userStr) {
-    console.error('No user logged in')
-    return
-  }
-  
-  currentUserId.value = userId
-  currentUser.value = JSON.parse(userStr)
-  
+async function loadDashboard() {
   await loadBalance()
   await loadUsers()
 }
@@ -274,21 +265,6 @@ function toggleAllTransactions() {
   showAllTransactions.value = !showAllTransactions.value
 }
 
-function formatRelativeTime(timestamp: string) {
-  const now = new Date()
-  const then = new Date(timestamp)
-  const diffMs = now.getTime() - then.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-  
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return then.toLocaleDateString()
-}
-
 function openTransactionDetail(tx: Transaction) {
   selectedTransaction.value = tx
   showTransactionModal.value = true
@@ -351,22 +327,7 @@ function copyTransactionId(id: string) {
   }
 }
 
-function formatCentralTime(timestamp: string): string {
-  // Ensure timestamp is treated as UTC by adding Z if not present
-  const utcTimestamp = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z'
-  const date = new Date(utcTimestamp)
-  return date.toLocaleString('en-US', {
-    timeZone: 'America/Chicago',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-}
-
-onMounted(loadCurrentUser)
+onMounted(loadDashboard)
 
 </script>
 
@@ -683,7 +644,7 @@ onMounted(loadCurrentUser)
                     {{ selectedTransaction.senderId === currentUserId ? 'Payment Sent' : 'Payment Received' }}
                   </h3>
                   <p class="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
-                    {{ new Date(selectedTransaction.timestamp).toUTCString().split(' ').slice(0, 4).join(' ') }}
+                    {{ formatCentralDate(selectedTransaction.timestamp) }}
                   </p>
                 </div>
               </div>

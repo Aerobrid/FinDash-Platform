@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
 import Login from '../views/Login.vue'
 import Dashboard from '../views/Dashboard.vue'
 import Contacts from '../views/Contacts.vue'
@@ -6,28 +7,17 @@ import ContactDetail from '../views/ContactDetail.vue'
 import Analytics from '../views/Analytics.vue'
 import Security from '../views/Security.vue'
 
-const isAuthenticated = () => {
-  return !!sessionStorage.getItem('userId')
-}
-
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
-      redirect: () => isAuthenticated() ? '/dashboard' : '/login'
+      redirect: '/dashboard'
     },
     {
       path: '/login',
       name: 'login',
-      component: Login,
-      beforeEnter: (to, from, next) => {
-        if (isAuthenticated()) {
-          next('/dashboard')
-        } else {
-          next()
-        }
-      }
+      component: Login
     },
     {
       path: '/dashboard',
@@ -62,11 +52,21 @@ const router = createRouter({
   ]
 })
 
+// Single auth instance
+const auth = useAuth()
+
 router.beforeEach((to, from, next) => {
-  if (to.meta.requiresAuth && !isAuthenticated()) {
-    next('/login')
-  } else {
+  // Public routes - proceed immediately
+  if (!to.meta.requiresAuth) {
     next()
+    return
+  }
+
+  // Protected route - check current auth state (no async call)
+  if (auth.isAuthenticated.value) {
+    next()
+  } else {
+    next('/login')
   }
 })
 

@@ -2,7 +2,8 @@
 import { RouterView, useRouter, useRoute } from 'vue-router'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
-import { formatCurrencyCompact } from './utils/formatNumber'
+import { formatCurrencyCompact, formatRelativeTime } from './utils/formatNumber'
+import { useAuth } from './composables/useAuth'
 
 interface User {
   id: string
@@ -31,9 +32,8 @@ interface ActivityItem {
 const router = useRouter()
 const route = useRoute()
 
-const currentUser = ref<any>(null)
-const authState = ref(!!sessionStorage.getItem('userId'))
-const isAuthenticated = computed(() => authState.value)
+// Use shared auth composable
+const { currentUser, isAuthenticated, isAuthLoading, loadUser, logoutAndClearCookie } = useAuth()
 const isDarkMode = ref(false)
 const showNotifications = ref(false)
 const notifications = ref<ActivityItem[]>([])
@@ -42,6 +42,12 @@ const hasUnread = ref(false)
 const notificationPanelRef = ref<HTMLElement | null>(null)
 const notificationBellRef = ref<HTMLElement | null>(null)
 const NOTIFICATION_LAST_SEEN_KEY = 'notifications_last_seen'
+
+// Initialize dark mode immediately on script load (before component mounts)
+const savedTheme = localStorage.getItem('theme')
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+isDarkMode.value = savedTheme ? savedTheme === 'dark' : prefersDark
+document.documentElement.classList.toggle('dark', isDarkMode.value)
 
 const currentPage = computed(() => {
   const pages: Record<string, string> = {
@@ -52,13 +58,6 @@ const currentPage = computed(() => {
   }
   return pages[route.name as string] || 'Dashboard'
 })
-
-function loadUser() {
-  const user = sessionStorage.getItem('currentUser')
-  if (user) {
-    currentUser.value = JSON.parse(user)
-  }
-}
 
 function toggleDarkMode() {
   isDarkMode.value = !isDarkMode.value
@@ -72,21 +71,6 @@ function loadDarkModePreference() {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   isDarkMode.value = saved ? saved === 'dark' : prefersDark
   document.documentElement.classList.toggle('dark', isDarkMode.value)
-}
-
-function formatRelativeTime(timestamp: string) {
-  const now = new Date()
-  const then = new Date(timestamp)
-  const diffMs = now.getTime() - then.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return then.toLocaleDateString()
 }
 
 function markNotificationsSeen() {
@@ -103,13 +87,12 @@ function updateUnreadFlag() {
 }
 
 async function loadNotifications() {
-  const userId = sessionStorage.getItem('userId')
-  if (!userId) return
+  if (!currentUser.value?.id) return
 
   notificationsLoading.value = true
   try {
     const [txRes, usersRes] = await Promise.all([
-      axios.get(`/api/transaction/history/${userId}`),
+      axios.get(`/api/transaction/history/${currentUser.value.id}`),
       axios.get('/api/wallet/users')
     ])
 
@@ -119,7 +102,7 @@ async function loadNotifications() {
       .sort((a: Transaction, b: Transaction) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 12)
       .map((tx: Transaction) => {
-        const isIncoming = tx.receiverId === userId
+        const isIncoming = tx.receiverId === currentUser.value.id
         const otherId = isIncoming ? tx.senderId : tx.receiverId
         const other = usersById.get(otherId)
 
@@ -152,12 +135,8 @@ async function refreshNotifications() {
   markNotificationsSeen()
 }
 
-function handleLogout() {
-  sessionStorage.removeItem('currentUser')
-  sessionStorage.removeItem('userId')
-  sessionStorage.removeItem('token')
-  currentUser.value = null
-  authState.value = false
+async function handleLogout() {
+  await logoutAndClearCookie()
   notifications.value = []
   hasUnread.value = false
   router.push('/login')
@@ -173,24 +152,34 @@ function handleGlobalClick(event: MouseEvent) {
   }
 }
 
-// Watch route to update auth state
-watch(async () => route.path, async () => {
-  authState.value = !!sessionStorage.getItem('userId')
-  if (authState.value) {
-    loadUser()
+// Watch for auth changes to load notifications
+watch(() => isAuthenticated.value, async (authenticated) => {
+  if (authenticated && currentUser.value) {
     await loadNotifications()
-    // Only mark as seen if the notifications dropdown is not currently showing
     if (!showNotifications.value) {
       markNotificationsSeen()
     }
   }
+})
+
+// Watch route changes to close notifications and update seen status
+watch(() => route.path, () => {
   showNotifications.value = false
+  if (isAuthenticated.value) {
+    markNotificationsSeen()
+  }
 })
 
 onMounted(() => {
-  loadUser()
-  loadNotifications()
+  // Load dark mode first (synchronous) so styles apply correctly
   loadDarkModePreference()
+  
+  // Only load notifications if already authenticated
+  // Router guard will handle loading user for protected routes
+  if (isAuthenticated.value && currentUser.value) {
+    loadNotifications()
+  }
+  
   document.addEventListener('click', handleGlobalClick)
 })
 
@@ -200,7 +189,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="isAuthenticated" class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 text-slate-950 dark:text-slate-50">
+  <div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 text-slate-950 dark:text-slate-50">
+    <!-- Loading State -->
+    <div v-if="isAuthLoading" class="fixed inset-0 flex items-center justify-center z-50">
+      <div class="text-center">
+        <div class="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-indigo-600 border-r-transparent"></div>
+        <p class="mt-4 text-sm font-medium text-slate-600 dark:text-slate-400">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Authenticated Content -->
+    <div v-else-if="isAuthenticated">
     <!-- Modern Side Navigation -->
     <div class="flex h-screen overflow-hidden">
       <!-- Sidebar -->
@@ -353,10 +352,11 @@ onUnmounted(() => {
         </div>
       </main>
     </div>
-  </div>
+    </div>
 
-  <!-- Not Authenticated -->
-  <RouterView v-else />
+    <!-- Not Authenticated (Login Page) -->
+    <RouterView v-else />
+  </div>
 </template>
 
 <style>
