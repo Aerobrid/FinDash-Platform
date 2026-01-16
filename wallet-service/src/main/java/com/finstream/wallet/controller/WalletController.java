@@ -47,14 +47,15 @@ public class WalletController {
 
     public WalletController(WalletService walletService, UserRepository userRepository, 
                            WalletRepository walletRepository, JwtUtil jwtUtil,
-                           RateLimitingService rateLimitingService, CookieUtil cookieUtil) {
+                           RateLimitingService rateLimitingService, CookieUtil cookieUtil,
+                           BCryptPasswordEncoder passwordEncoder) {
         this.walletService = walletService;
         this.userRepository = userRepository;
         this.walletRepository = walletRepository;
         this.jwtUtil = jwtUtil;
         this.rateLimitingService = rateLimitingService;
         this.cookieUtil = cookieUtil;
-        this.passwordEncoder = new BCryptPasswordEncoder();
+        this.passwordEncoder = passwordEncoder;
     }
 
     // get current user from JWT cookie

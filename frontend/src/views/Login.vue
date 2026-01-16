@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { getDeviceInfo } from '../utils/deviceDetection'
@@ -125,8 +125,6 @@ async function handleLogout() {
   email.value = ''
   password.value = ''
   fullName.value = ''
-  currentUser.value = null
-  isAuthenticated.value = false
 }
 </script>
 

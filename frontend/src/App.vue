@@ -33,7 +33,7 @@ const router = useRouter()
 const route = useRoute()
 
 // Use shared auth composable
-const { currentUser, isAuthenticated, isAuthLoading, loadUser, logoutAndClearCookie } = useAuth()
+const { currentUser, isAuthenticated, isAuthLoading, logoutAndClearCookie } = useAuth()
 const isDarkMode = ref(false)
 const showNotifications = ref(false)
 const notifications = ref<ActivityItem[]>([])
@@ -102,7 +102,7 @@ async function loadNotifications() {
       .sort((a: Transaction, b: Transaction) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 12)
       .map((tx: Transaction) => {
-        const isIncoming = tx.receiverId === currentUser.value.id
+      const isIncoming = tx.receiverId === currentUser.value?.id
         const otherId = isIncoming ? tx.senderId : tx.receiverId
         const other = usersById.get(otherId)
 

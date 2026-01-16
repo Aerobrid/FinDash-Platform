@@ -27,10 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         
         // skip auth for public endpoints
         String path = request.getRequestURI();
-        if (path.equals("/api/wallet/login") || 
-            path.equals("/api/wallet/users") || 
-            path.startsWith("/actuator/health") ||
-            path.startsWith("/api/sessions")) {
+        if (isPublicEndpoint(path)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -54,6 +51,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         request.setAttribute("userId", userId);
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isPublicEndpoint(String path) {
+        // Only registration and login are public endpoints
+        return path.equals("/api/wallet/login") || 
+               path.equals("/api/wallet/users") || 
+               path.startsWith("/actuator/health");
     }
 
     private String extractTokenFromCookie(HttpServletRequest request) {

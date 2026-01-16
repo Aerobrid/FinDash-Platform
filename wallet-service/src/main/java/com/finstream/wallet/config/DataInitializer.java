@@ -18,7 +18,8 @@ public class DataInitializer {
 
     @Bean
     @SuppressWarnings("unused")
-    CommandLineRunner seed(UserRepository userRepository, WalletRepository walletRepository, Environment env) {
+    CommandLineRunner seed(UserRepository userRepository, WalletRepository walletRepository, Environment env,
+                          BCryptPasswordEncoder passwordEncoder) {
         return args -> {
             boolean seedDemo = Boolean.parseBoolean(env.getProperty("wallet.seed-demo", "false"));
             if (!seedDemo) {
@@ -26,8 +27,6 @@ public class DataInitializer {
             }
 
             if (userRepository.count() == 0) {
-                BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-                
                 User alice = new User();
                 alice.setFullName("Alice Example");
                 alice.setEmail("alice@example.com");

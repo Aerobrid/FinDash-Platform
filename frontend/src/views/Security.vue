@@ -18,8 +18,8 @@ interface Session {
 
 const router = useRouter()
 const { currentUser, logoutAndClearCookie } = useAuth()
-const showPasswordForm = ref(false)
 const showEditProfile = ref(false)
+const showPasswordForm = ref(false)
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -47,7 +47,7 @@ async function loadSessions() {
   try {
     const res = await axios.get(`/api/sessions/${currentUser.value.id}`)
     sessions.value = res.data
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Failed to load sessions:', err)
   } finally {
     sessionsLoading.value = false
@@ -59,12 +59,14 @@ async function deleteSession(sessionId: string) {
     return
   }
 
+  if (!currentUser.value?.id) return
+
   deletingSessionId.value = sessionId
   try {
     await axios.delete(`/api/sessions/${currentUser.value.id}/${sessionId}`)
     sessions.value = sessions.value.filter(s => s.id !== sessionId)
-  } catch (err) {
-    console.error('Failed to delete session:', err)
+  } catch (error: unknown) {
+    console.error('Failed to delete session:', error)
   } finally {
     deletingSessionId.value = null
   }
@@ -75,17 +77,18 @@ async function logoutAllOthers() {
     return
   }
 
+  if (!currentUser.value?.id) return
+
   try {
     // Delete all sessions except current one
-    const currentSession = sessions.value.find(s => s.isCurrent)
     for (const session of sessions.value) {
       if (!session.isCurrent) {
         await axios.delete(`/api/sessions/${currentUser.value.id}/${session.id}`)
       }
     }
     await loadSessions()
-  } catch (err) {
-    console.error('Failed to logout other sessions:', err)
+  } catch (error: unknown) {
+    console.error('Failed to logout other sessions:', error)
   }
 }
 
@@ -117,8 +120,9 @@ async function handleSaveProfile() {
       showEditProfile.value = false
       profileMessage.value = ''
     }, 1200)
-  } catch (err) {
-    const msg = err.response?.data?.error || 'Unable to update profile'
+  } catch (err: unknown) {
+    const axiosError = err as any
+    const msg = axiosError?.response?.data?.error || 'Unable to update profile'
     profileMessage.value = msg
   }
 }
@@ -153,7 +157,7 @@ async function handleDeleteAccount() {
   if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
     try {
       await logoutAndClearCookie()
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Logout error during account deletion:', err)
     }
     
@@ -166,7 +170,7 @@ async function handleLogout() {
   try {
     await logoutAndClearCookie()
     router.push('/login')
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Logout error:', err)
   }
 }
@@ -183,23 +187,23 @@ async function handleLogout() {
     <!-- Profile Section -->
     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/60 overflow-hidden shadow-sm">
       <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/30 flex items-center gap-4">
-        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
-          {{ currentUser.fullName?.charAt(0) || 'U' }}
+        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 border-2 border-white overflow-hidden flex items-center justify-center text-white font-bold">
+          {{ currentUser?.fullName?.charAt(0) || 'U' }}
         </div>
         <div>
-          <h3 class="font-bold text-slate-900 dark:text-slate-50">{{ currentUser.fullName }}</h3>
-          <p class="text-sm text-slate-500 dark:text-slate-400">{{ currentUser.email }}</p>
+          <h3 class="font-bold text-slate-900 dark:text-slate-50">{{ currentUser?.fullName || 'User' }}</h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400">{{ currentUser?.email || 'No email' }}</p>
         </div>
       </div>
       <div class="p-6 space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Full Name</label>
-            <p class="text-lg font-semibold text-slate-900 dark:text-slate-50 mt-2">{{ currentUser.fullName }}</p>
+            <p class="text-lg font-semibold text-slate-900 dark:text-slate-50 mt-2">{{ currentUser?.fullName || 'User' }}</p>
           </div>
           <div>
             <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email</label>
-            <p class="text-lg font-semibold text-slate-900 dark:text-slate-50 mt-2">{{ currentUser.email }}</p>
+            <p class="text-lg font-semibold text-slate-900 dark:text-slate-50 mt-2">{{ currentUser?.email || 'No email' }}</p>
           </div>
         </div>
         <button @click="showEditProfile = !showEditProfile" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all shadow-sm">

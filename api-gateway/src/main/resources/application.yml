@@ -9,14 +9,17 @@ spring:
       globalcors:
         corsConfigurations:
           '[/**]':
-            allowedOriginPatterns: "*"
+            allowedOriginPatterns: "http://localhost:3000,http://127.0.0.1:3000"
             allowedMethods:
               - GET
               - POST
               - PUT
               - DELETE
               - OPTIONS
-            allowedHeaders: "*"
+            allowedHeaders:
+              - Content-Type
+              - Authorization
+              - Accept
             allowCredentials: true
             maxAge: 3600
       routes:
@@ -64,3 +67,12 @@ resilience4j:
         timeoutDuration: 3s
       transactionServiceCircuitBreaker:
         timeoutDuration: 3s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always

@@ -6,7 +6,7 @@ import { useAuth } from '../composables/useAuth'
 import StatCard from '../components/StatCard.vue'
 import TransactionCard from '../components/TransactionCard.vue'
 import TransferForm from '../components/TransferForm.vue'
-import { formatCurrencyCompact, formatNumberCompact, formatRelativeTime } from '../utils/formatNumber'
+import { formatCurrencyCompact, formatRelativeTime } from '../utils/formatNumber'
 import { formatCentralTime, formatCentralDate } from '../utils/formatDate'
 
 interface User {
@@ -173,7 +173,6 @@ const recentActivity = computed(() => {
   })
 })
 
-const showQuickTransferAmount = ref<string>('')
 const selectedQuickTransferContact = ref<Contact | null>(null)
 const selectedTransaction = ref<Transaction | null>(null)
 const showTransactionModal = ref(false)
@@ -428,7 +427,7 @@ onMounted(loadDashboard)
           data-transfer-form
           :loading="transferLoading"
           :balance="balance"
-          :preselectedContact="selectedQuickTransferContact || undefined"
+          :preselectedContact="selectedQuickTransferContact ? selectedQuickTransferContact.user : undefined"
           @transfer="handleTransfer"
         />
 
@@ -769,6 +768,7 @@ input::-webkit-inner-spin-button {
   margin: 0;
 }
 input[type=number] {
+  -webkit-appearance: none;
   -moz-appearance: textfield;
 }
 </style>

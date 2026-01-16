@@ -7,6 +7,12 @@ server:
     include-message: never
     include-binding-errors: never
     include-stacktrace: never
+  servlet:
+    session:
+      cookie:
+        secure: false # Set to true in production with HTTPS
+        http-only: true
+        same-site: strict
 
 spring:
   application:
@@ -53,8 +59,8 @@ grpc:
     port: 9091
 
 jwt:
-  secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production-please-make-it-long-enough}
-  expiration: 86400000
+  secret: ${JWT_SECRET:change-this-secret-in-production-use-a-strong-256-bit-key-minimum}
+  expiration: ${JWT_EXPIRATION:86400000}
 
 management:
   endpoints:
@@ -72,3 +78,13 @@ management:
   health:
     db:
       enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.finstream: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+wallet:
+  seed-demo: false
