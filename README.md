@@ -28,7 +28,7 @@ Built with Vue 3 frontend, Spring Boot microservices, PostgreSQL, and Kafka for 
 ### Services Overview
 - **Frontend** (Vue 3 + Vite) - User interface served by Nginx on port 3000
 - **API Gateway** (Spring Cloud Gateway + Resilience4J) - Routes requests, handles CORS, circuit breaking on port 8080
-- **Wallet Service** (Spring Boot) - User accounts, wallets, balances on port 8081, gRPC server is on port 9091
+- **Wallet Service** (Spring Boot) - User accounts, wallets, balances on port 8081 (REST) and port 9091 (gRPC)
 - **Transaction Service** (Spring Boot) - Payment processing, transfers on port 8082
 - **Kafka + Zookeeper** - Event streaming for async transaction processing
 - **PostgreSQL** - Single database `findash` with user, wallet, and transaction tables
@@ -57,24 +57,23 @@ Built with Vue 3 frontend, Spring Boot microservices, PostgreSQL, and Kafka for 
           ┌───────────────┘             └───────────────┐
           │ /api/wallet/**                  /api/transaction/**
           ▼                                              ▼
-┌─────────────────────┐                    ┌─────────────────────┐
-│  Wallet Service     │◄───── gRPC ────────│ Transaction Service │
-│  :8081 (REST)       │      validate      │  :8082 (REST)       │
-│  :9091 (gRPC)       │      user/wallet   │                     │
-│                     │                    │                     │
-│  - User accounts    │                    │  - Transfer logic   │
-│  - Wallet CRUD      │                    │  - Kafka producer   │
-│  - Kafka consumer   │                    └──────────┬──────────┘
-└──────┬──────────────┘                               │
-       │                                              │ Publishes
-       │ Reads                                        ▼
-       │                                    ┌──────────────────┐
-       │                                    │  Kafka :9092     │
-       │                                    │  Topic:          │
-       │                                    │  "transactions"  │
-       │                                    └──────────────────┘
-       │ Consumes                                     │
-       └──────────────────────────────────────────────┘
+┌─────────────────────────────────┐       ┌──────────────────────────────┐
+│  Wallet Service                 │       │  Transaction Service         │
+│  :8081 (REST) :9091 (gRPC)      │◄──────│  :8082 (REST)                │
+│                                 │ gRPC  │                              │
+│  - User accounts                │ :9091 │  - Transfer logic            │
+│  - Wallet CRUD                  │       │  - gRPC Client               │
+│  - gRPC Server                  │       │  - Saves tx to DB            │
+│    (checkSufficientBalance)     │       └──────────────┬───────────────┘
+│  - Kafka consumer               │                      │ Publishes
+└──────┬──────────────────────────┘                     ▼
+       │                                     ┌──────────────────────┐
+       │ Reads                               │  Kafka :9092         │
+       │                                     │  Topic:              │
+       │                                     │  "transactions"      │
+       │                                     └──────────────────────┘
+       │ Consumes                                      │
+       └───────────────────────────────────────────────┘
        │
        │ Updates balance
        ▼
@@ -98,13 +97,15 @@ Built with Vue 3 frontend, Spring Boot microservices, PostgreSQL, and Kafka for 
    - Gateway routes `/api/transaction/**` to Transaction Service
    - If a service is unavailable, the gateway returns a 503 fallback
 
-3. **Transaction → Wallet** (gRPC - synchronous)
-   - Before creating a transfer, Transaction Service validates the sender and receiver
-   - Validation happens via the Wallet Service gRPC endpoint at `wallet-service:9091`
+3. **Transaction → Wallet** (gRPC - synchronous balance validation)
+   - Before processing a transfer, Transaction Service calls Wallet Service via gRPC
+   - The `checkSufficientBalance` RPC verifies sender has enough funds
+   - If balance is insufficient, transaction is rejected immediately with 400 Bad Request
+   - gRPC provides fast, type-safe validation before any database writes
 
 4. **Transaction → Kafka** (Event streaming - async)
-   - After validation, Transaction Service publishes an event to the Kafka topic
-   - The event includes sender, receiver, and amount
+   - After validation, Transaction Service saves the transaction to DB and publishes an event to Kafka
+   - The event includes sender ID, receiver ID, and amount
 
 5. **Kafka → Wallet** (Consumer - async)
    - Wallet Service listens on the `transactions` topic
@@ -117,6 +118,7 @@ Built with Vue 3 frontend, Spring Boot microservices, PostgreSQL, and Kafka for 
 
 ## Tech Stack
 - Backend: Java 21, Spring Boot 3, Spring Cloud Gateway, Resilience4J, Micrometer
+- RPC: gRPC 1.63.0, Protocol Buffers 3
 - Messaging: Apache Kafka
 - Data: PostgreSQL, HikariCP
 - Security: JWT (HttpOnly Cookies), BCrypt, Jakarta Validation, rate limiting (Bucket4j), CORS with credentials
@@ -133,16 +135,19 @@ Built with Vue 3 frontend, Spring Boot microservices, PostgreSQL, and Kafka for 
 ### Wallet Service
 - `wallet-service/src/main/java/com/finstream/wallet/controller/UserController.java` - Registration, login, user management
 - `wallet-service/src/main/java/com/finstream/wallet/controller/WalletController.java` - Wallet balance operations
-- `wallet-service/src/main/java/com/finstream/wallet/grpc/WalletGrpcService.java` - gRPC server for validation
-- `wallet-service/src/main/java/com/finstream/wallet/kafka/TransactionConsumer.java` - Kafka listener for balance updates
+- `wallet-service/src/main/java/com/finstream/wallet/grpc/GrpcWalletService.java` - gRPC server for balance validation
+- `wallet-service/src/main/java/com/finstream/wallet/kafka/TransactionEventConsumer.java` - Kafka listener for balance updates
 - `wallet-service/src/main/java/com/finstream/wallet/security/JwtUtil.java` - JWT token generation/validation
-- `wallet-service/src/main/resources/application.yml` - DB, Kafka, JWT config
+- `wallet-service/src/main/resources/application.yml` - DB, Kafka, JWT, gRPC config
 
 ### Transaction Service
 - `transaction-service/src/main/java/com/finstream/transaction/controller/TransactionController.java` - Transfer endpoints
-- `transaction-service/src/main/java/com/finstream/transaction/grpc/WalletGrpcClient.java` - gRPC client to validate wallets
-- `transaction-service/src/main/java/com/finstream/transaction/kafka/TransactionProducer.java` - Kafka publisher
-- `transaction-service/src/main/resources/application.yml` - DB, Kafka, gRPC config
+- `transaction-service/src/main/java/com/finstream/transaction/service/TransactionOrchestrator.java` - Transaction processing, gRPC validation, and Kafka publishing
+- `transaction-service/src/main/java/com/finstream/transaction/grpc/WalletGrpcClient.java` - gRPC client for wallet service calls
+- `transaction-service/src/main/resources/application.yml` - DB, Kafka, and gRPC client config
+
+### Common (Shared)
+- `common/src/main/proto/service.proto` - Protocol Buffers definition for gRPC services
 
 ### Frontend
 - `frontend/src/views/Login.vue` - Login/register UI
@@ -226,10 +231,14 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/users" -Method POST -Co
 
 # Log in as Alice
 $login = @{ email = "alice@test.com"; password = "TestPass!123" } | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/login" -Method POST -ContentType "application/json" -Body $login -WebSession $session
+$aliceLogin = Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/login" -Method POST -ContentType "application/json" -Body $login -WebSession $session
 
-# Send $5 to Bob
-$xfer = @{ senderEmail = "alice@test.com"; receiverEmail = "bob@test.com"; amount = 5 } | ConvertTo-Json
+# Get Bob's user ID
+$users = Invoke-RestMethod -Uri "http://localhost:8080/api/wallet/users" -Method GET -WebSession $session
+$bobId = ($users | Where-Object { $_.email -eq "bob@test.com" }).id
+
+# Send $5 to Bob (need sender and receiver UUIDs)
+$xfer = @{ senderId = $aliceLogin.id; receiverId = $bobId; amount = 5 } | ConvertTo-Json
 Invoke-RestMethod -Uri "http://localhost:8080/api/transaction/transfer" -Method POST -ContentType "application/json" -Body $xfer -WebSession $session
 ```
 
@@ -245,12 +254,16 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/transaction/transfer" -Method 
 
 **Database:** All queries are parameterized (no SQL injection).
 
+**gRPC:** Service-to-service communication using gRPC for synchronous balance validation. Currently configured with plaintext for local development.
+
 **Production Checklist:**
 - Set `Secure` flag on cookies (requires HTTPS)
 - Use 256+ bit JWT secret in secure vault
 - Enable TLS 1.3+ on all connections
+- Configure TLS for gRPC (currently using plaintext for local dev)
 - Update allowed CORS origins to production domains
 - Review rate limit thresholds
+- Implement gRPC authentication/authorization for service-to-service calls
 
 ## Codebase Improvements
 
@@ -262,3 +275,22 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/transaction/transfer" -Method 
 - ✅ Contact search filters out already-added contacts
 - ✅ Dark mode initialization prevents UI flashing
 - ✅ All components use proper TypeScript types
+- ✅ gRPC integration for synchronous balance validation
+- ✅ Dual-path architecture: gRPC for validation, Kafka for updates
+
+## Transaction Flow with gRPC
+
+When a user initiates a money transfer:
+
+1. **User submits transfer** via Vue frontend → API Gateway → Transaction Service
+2. **gRPC validation** (synchronous): Transaction Service calls Wallet Service via gRPC to verify sender has sufficient balance
+   - If insufficient: Transaction rejected immediately with 400 Bad Request
+   - If sufficient: Continue to step 3
+3. **Save transaction**: Transaction Service persists transaction record with status `COMPLETED`
+4. **Publish event** (asynchronous): Transaction Service publishes event to Kafka topic `transactions`
+5. **Balance update** (asynchronous): Wallet Service consumes Kafka event and updates both sender and receiver balances
+
+This dual-path ensures:
+- **Fast validation**: gRPC provides immediate feedback (< 100ms typically)
+- **Data consistency**: Kafka ensures eventual consistency for balance updates
+- **Fault tolerance**: If Kafka is down, transaction is still validated and saved; balance update happens when Kafka recovers

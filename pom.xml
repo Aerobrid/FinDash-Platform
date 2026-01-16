@@ -27,7 +27,7 @@
         <java.version>21</java.version>
         <spring-cloud.version>2023.0.0</spring-cloud.version>
         <protobuf.version>3.25.5</protobuf.version>
-        <grpc.version>1.60.0</grpc.version>
+        <grpc.version>1.63.0</grpc.version>
         <grpc-spring-boot-starter.version>3.1.0.RELEASE</grpc-spring-boot-starter.version>
         <postgresql.version>42.7.2</postgresql.version>
         <spring-security.version>6.4.4</spring-security.version>

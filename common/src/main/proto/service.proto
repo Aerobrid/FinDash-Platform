@@ -8,6 +8,7 @@ option java_package = "com.finstream.common.grpc";
 service WalletService {
   rpc GetBalance (BalanceRequest) returns (BalanceResponse);
   rpc ValidateUser (UserValidationRequest) returns (UserValidationResponse);
+  rpc CheckSufficientBalance (BalanceCheckRequest) returns (BalanceCheckResponse);
 }
 
 message BalanceRequest {
@@ -18,6 +19,16 @@ message BalanceResponse {
   string userId = 1;
   double balance = 2;
   string currency = 3;
+}
+
+message BalanceCheckRequest {
+  string userId = 1;
+  double amount = 2;
+}
+
+message BalanceCheckResponse {
+  bool hasSufficientBalance = 1;
+  double currentBalance = 2;
 }
 
 message UserValidationRequest {
