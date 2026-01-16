@@ -8,7 +8,7 @@ FinDash is a simulated digital wallet and payment platform that lets users:
 - Send money to other users
 - Manage contacts and view analytics
 
-Built with Vue 3 frontend, Spring Boot microservices, PostgreSQL, and Kafka for messaging.
+Built with Vue 3 frontend, Spring Boot microservices, PostgreSQL, gRPC, and Kafka for messaging.
 
 ## Prerequisites
 
