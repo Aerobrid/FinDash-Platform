@@ -1,32 +1,105 @@
-# Local environment files
+# Terraform
+.terraform/
+terraform.tfstate*
+*.tfvars
+!terraform.tfvars.example
+.terraform.lock.hcl
+infra/terraform/bootstrap/terraform.tfstate*
+infra/terraform/bootstrap/.terraform/
+infra/terraform/.terraform.lock.hcl
+
+# Kubernetes
+kubeconfig*
+*.kubeconfig
+infra/kubeconfig*
+k8s/.env
+k8s/.env.local
+k8s/processed/
+
+# AWS credentials and config
+~/.aws/
+.aws/
+aws_credentials
+AWS_ACCOUNT_ID
+ECR_URI
+*.pem
+*.key
+
+# Environment files
 .env
-.env.*
+.env.local
+.env.*.local
+.env.*.example
 !.env.example
 
-# Node
+# Ansible
+*.retry
+inventory/hosts.local
+infra/ansible/inventory.local
+
+# Node/Vite build artifacts
 frontend/node_modules/
 frontend/dist/
+frontend/.env.local
+
+# Maven build outputs
+**/target/
+**/.DS_Store
+**/dependency-reduced-pom.xml
 
 # Java / Maven
 **/target/
 **/.mvn/
+**/.classpath
+**/.factorypath
+**/.project
+**/.settings/
+**/*.jks
+**/*.p12
 
 # OS
 .DS_Store
 Thumbs.db
+._.DS_Store
+**/._*
 
 # Logs
 **/*.log
+logs/
 
 # Editors
-.vscode/
+.vscode/local/
 .idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+
+# IDE specific files
+*.iml
+*.iws
+*.ipr
 
 # Local junk
 tmp/
-scripts/
+scripts/local/
+.local/
+
+# Terraform local state
+*.terraform.tfstate*
 
 # GitHub upgrade logs (ignore noise)
 .github/java-upgrade/
+
+# Docker build artifacts
+.docker/
+**/*.tar
+**/*.tar.gz
+
+# Test coverage
+coverage/
+*.lcov
 
 

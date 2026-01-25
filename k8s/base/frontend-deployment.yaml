@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: finstream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/finstream-dev-frontend:v2"
+          ports:
+            - containerPort: 8080
+          env:
+            - name: VITE_API_BASE_URL
+              value: "http://api-gateway.finstream.svc.cluster.local"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: finstream
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

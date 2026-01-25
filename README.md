@@ -180,6 +180,45 @@ docker-compose up -d --build
 - Frontend: http://localhost:3000
 - API Gateway: http://localhost:8080
 
+## Deployment Methods
+
+### 📦 Three Deployment Approaches Supported
+
+This project supports **three different deployment methods** with environment-specific configurations:
+
+#### 1. **Local Docker Compose** (Development)
+- Perfect for local development and testing
+- All services in containers, single command to start
+- **Command**: `docker-compose up -d`
+- **Access**: http://localhost:3000
+- **Database**: PostgreSQL container
+- **See**: [Docker-Compose Guide](#locally)
+
+#### 2. **Kubernetes on AWS EKS** (Production)
+- Full production-grade Kubernetes deployment
+- Auto-scaling, rolling updates, load balancing
+- Uses AWS RDS for managed PostgreSQL
+- **Command**: `bash k8s/deploy.sh`
+- **Setup**: Edit `k8s/.env` with your AWS info
+- **See**: [k8s/README.md](k8s/README.md)
+
+#### 3. **Terraform Infrastructure as Code** (Full Stack)
+- Provision entire AWS infrastructure automatically
+- Creates VPC, EKS cluster, RDS database, and ECR registries
+- **Command**: `terraform apply` (in `infra/terraform/`)
+- **Setup**: Update `terraform.tfvars` with your values
+- **See**: [Terraform Configuration](infra/terraform/)
+
+### 🔄 How All Methods Work Together
+
+All three methods use the **same application code** with environment-specific configuration:
+
+| Component | Docker-Compose | Kubernetes | Terraform |
+|-----------|---|---|---|
+| **Database** | PostgreSQL container `postgres:5432` | RDS endpoint via `${DB_HOST}` | RDS created by Terraform |
+| **Credentials** | docker-compose.yml defaults | K8s Secrets | terraform.tfvars (⚠️ confidential) |
+| **Frontend Port** | 3000 (maps to 80) | 8080 (LoadBalancer) | 8080 via EKS |
+
 ### Locally
 ```powershell
 # Build all services

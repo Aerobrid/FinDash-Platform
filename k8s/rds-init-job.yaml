@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rds-init
+  namespace: finstream
+spec:
+  template:
+    spec:
+      containers:
+      - name: postgres-init
+        image: postgres:16-alpine
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: finstream-db-secret
+              key: DB_PASSWORD
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: finstream-config
+              key: DB_HOST
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: finstream-config
+              key: DB_NAME
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: finstream-db-secret
+              key: DB_USERNAME
+        command:
+        - sh
+        - -c
+        - |
+          psql -h $DB_HOST -U $DB_USERNAME -d postgres -c "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME';" | grep -q 1 || psql -h $DB_HOST -U $DB_USERNAME -d postgres -c "CREATE DATABASE $DB_NAME;"
+          psql -h $DB_HOST -U $DB_USERNAME -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS uuid-ossp;"
+          echo "Database initialized successfully"
+      restartPolicy: Never
+  backoffLimit: 5

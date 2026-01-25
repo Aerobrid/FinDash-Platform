@@ -1,0 +1,80 @@
+# Ansible deploy: builds Docker images, pushes to ECR, then applies K8s manifests
+# Requirements: AWS CLI auth (e.g., `aws configure` or SSO), Docker, kubectl
+# Usage: ansible-playbook -i localhost, deploy.yml
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    aws_region: us-east-1
+    project_name: finstream
+    environment: dev
+    image_tag: v1
+    repos:
+      - api-gateway
+      - wallet-service
+      - transaction-service
+      - frontend
+    repo_paths:
+      api-gateway: api-gateway
+      wallet-service: wallet-service
+      transaction-service: transaction-service
+      frontend: frontend
+  tasks:
+    - name: Verify project root directory
+      stat:
+        path: "{{ item }}"
+      register: dir_check
+      failed_when: not dir_check.stat.exists
+      loop:
+        - "{{ repo_paths['api-gateway'] }}"
+        - "{{ repo_paths['wallet-service'] }}"
+        - "{{ repo_paths['transaction-service'] }}"
+        - "{{ repo_paths['frontend'] }}"
+
+    - name: Get AWS account ID
+      command: aws sts get-caller-identity --query Account --output text
+      register: aws_account_id
+      changed_when: false
+
+    - name: Login to ECR
+      shell: aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ aws_account_id.stdout }}.dkr.ecr.{{ aws_region }}.amazonaws.com
+      changed_when: false
+
+    - name: Build and push images
+      loop: "{{ repos }}"
+      loop_control:
+        loop_var: repo
+      block:
+        - name: Build {{ repo }} image
+          command: docker build -t {{ aws_account_id.stdout }}.dkr.ecr.{{ aws_region }}.amazonaws.com/{{ project_name }}-{{ environment }}-{{ repo }}:{{ image_tag }} {{ repo_paths[repo] }}
+          register: build_result
+          failed_when: build_result.rc != 0
+          
+        - name: Push {{ repo }} image
+          command: docker push {{ aws_account_id.stdout }}.dkr.ecr.{{ aws_region }}.amazonaws.com/{{ project_name }}-{{ environment }}-{{ repo }}:{{ image_tag }}
+          register: push_result
+          failed_when: push_result.rc != 0
+
+    - name: Check kubectl access
+      command: kubectl cluster-info
+      changed_when: false
+      register: kubectl_check
+      failed_when: kubectl_check.rc != 0
+
+    - name: Apply Kubernetes namespace
+      command: kubectl apply -f k8s/base/namespace.yaml
+      register: ns_result
+      failed_when: ns_result.rc != 0
+
+    - name: Apply ConfigMap and Secrets
+      command: kubectl apply -f k8s/base
+      register: k8s_result
+      failed_when: k8s_result.rc != 0
+
+    - name: Wait for deployments to be ready
+      command: kubectl rollout status deployment/{{ item }} -n finstream --timeout=5m
+      loop:
+        - api-gateway
+        - wallet-service
+        - transaction-service
+        - frontend

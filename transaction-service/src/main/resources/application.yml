@@ -10,7 +10,7 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
   datasource:
-    url: jdbc:postgresql://postgres:5432/finstream
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/finstream}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver

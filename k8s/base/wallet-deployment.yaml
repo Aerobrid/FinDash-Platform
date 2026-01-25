@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wallet-service
+  namespace: finstream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wallet-service
+  template:
+    metadata:
+      labels:
+        app: wallet-service
+    spec:
+      containers:
+        - name: wallet-service
+          image: "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/finstream-dev-wallet-service:v1"
+          ports:
+            - containerPort: 8081
+            - containerPort: 9091
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://${DB_HOST}:5432/finstream"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: finstream-db-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: finstream-db-secret
+                  key: DB_PASSWORD
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "localhost:9092"
+            - name: SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET
+              value: "earliest"
+            - name: SPRING_AUTOCONFIGURE_EXCLUDE
+              value: "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wallet-service
+  namespace: finstream
+spec:
+  type: ClusterIP
+  selector:
+    app: wallet-service
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+    - name: grpc
+      port: 9091
+      targetPort: 9091

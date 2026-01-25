@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-db
+  namespace: finstream
+spec:
+  template:
+    spec:
+      containers:
+      - name: postgres-test
+        image: postgres:16-alpine
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: finstream-db-secret
+              key: DB_PASSWORD
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: finstream-config
+              key: DB_HOST
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: finstream-config
+              key: DB_NAME
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: finstream-db-secret
+              key: DB_USERNAME
+        command:
+        - sh
+        - -c
+        - |
+          echo "=== Testing database connectivity ==="
+          psql -h $DB_HOST -U $DB_USERNAME -d postgres -c "SELECT version();"
+          echo "=== Listing all databases ==="
+          psql -h $DB_HOST -U $DB_USERNAME -d postgres -c "\l" | grep -E "Name|finstream|template"
+          echo "=== Checking if finstream database exists ==="
+          psql -h $DB_HOST -U $DB_USERNAME -d postgres -c "SELECT 1 FROM pg_database WHERE datname = 'finstream';" 
+          if [ $? -eq 0 ]; then
+            echo "Finstream database EXISTS"
+          else
+            echo "Creating finstream database..."
+            psql -h $DB_HOST -U $DB_USERNAME -d postgres -c "CREATE DATABASE $DB_NAME;"
+          fi
+          echo "=== Connecting to finstream database ==="
+          psql -h $DB_HOST -U $DB_USERNAME -d $DB_NAME -c "SELECT 'Connection to finstream successful' as status;"
+      restartPolicy: Never
+  backoffLimit: 3

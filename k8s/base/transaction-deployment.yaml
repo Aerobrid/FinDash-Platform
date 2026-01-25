@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transaction-service
+  namespace: finstream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: transaction-service
+  template:
+    metadata:
+      labels:
+        app: transaction-service
+    spec:
+      containers:
+        - name: transaction-service
+          image: "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/finstream-dev-transaction-service:v1"
+          ports:
+            - containerPort: 8082
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://${DB_HOST}:5432/finstream"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: finstream-db-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: finstream-db-secret
+                  key: DB_PASSWORD
+            - name: WALLET_GRPC_HOST
+              value: "wallet-service"
+            - name: WALLET_GRPC_PORT
+              value: "9091"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: transaction-service
+  namespace: finstream
+spec:
+  type: ClusterIP
+  selector:
+    app: transaction-service
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082

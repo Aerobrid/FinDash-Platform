@@ -18,5 +18,5 @@ RUN chown -R nginx:nginx /usr/share/nginx/html && \
     chown -R nginx:nginx /var/run/nginx.pid
 RUN addgroup -S nginx && adduser -S nginx -G nginx || true
 USER nginx
-EXPOSE 80
+EXPOSE 80 8080
 CMD ["nginx", "-g", "daemon off;"]

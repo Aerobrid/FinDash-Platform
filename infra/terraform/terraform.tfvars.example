@@ -1,0 +1,6 @@
+aws_region   = "us-east-1"
+project_name = "finstream"
+environment  = "dev"
+
+db_username  = "app_user"
+db_password  = "CHANGE_ME_USE_A_STRONG_PASSWORD_AT_LEAST_16_CHARS"
