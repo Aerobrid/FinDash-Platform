@@ -174,11 +174,23 @@ Copy-Item .env.example .env
 > For production, use a very long `JWT_SECRET` and managed secrets.
 
 ## Run with Docker (recommended)
+
+**First time or after errors:**
 ```powershell
 docker-compose up -d --build
 ```
+
+**If you encounter Kafka/Zookeeper errors (NodeExistsException):**
+```powershell
+docker-compose down -v
+docker-compose up -d
+```
+
 - Frontend: http://localhost:3000
 - API Gateway: http://localhost:8080
+
+> [!TIP]
+> The `-v` flag removes volumes including Zookeeper state, which fixes session conflicts.
 
 ## Deployment Methods
 
